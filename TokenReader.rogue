@@ -1,3 +1,5 @@
+module Rose
+
 class TokenReader
   PROPERTIES
     tokens   : Token[]
@@ -11,7 +13,7 @@ class TokenReader
     method error( message:String )->Error
       if (has_another) return peek.error( message )
       if (count) return tokens.last.error( message )
-      return RogueError( message )
+      return RoseError( message )
 
     method has_another->Logical
       return (position < count)
@@ -55,7 +57,7 @@ class PreprocessorTokenReader
     method error( message:String )->Error
       if (has_another) return peek.error( message )
       if (count) return TokenType.eoi.create_token( tokens.last ).error( message )
-      return RogueError( message )
+      return RoseError( message )
 
     method expand_definition( t:Token )
       local entry = Preprocessor.definitions.find( t->String )

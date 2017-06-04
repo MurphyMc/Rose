@@ -1,0 +1,176 @@
+module Rose
+
+class RoseObject
+  GLOBAL PROPERTIES
+    _unique_id = 0
+
+  PROPERTIES
+    vars = Table<<String,Object>>()
+    _name : String
+    immutable = false
+    next : RoseObject
+
+  METHODS
+    method init ()
+      noAction
+
+    method init (name:String)
+      _name = name
+
+    #method add_property (t:Token, name:String)->Property
+    #  local r = Property(t, this, name)
+    #  if (not properties) properties = Property[]()
+    #  properties.add(r)
+    #  return r
+
+    method create_unique_id -> String
+      _unique_id++
+      return "$uniq" + _unique_id
+
+    method globals->RoseObject
+      return geto("Global")
+
+    method name -> String
+      if (not _name) return prior.to_String
+      return _name
+
+    method create(n:String, v=UndefinedValue:Object, t=null:Token)
+      #NOTE: Could use t to make sure we only do it once...
+      if (immutable) _err(t, "Object $ is immutable" (name))
+      set(n,v,t,true)
+
+    method set(n:String, v:Object, t=null:Token, force=true:Logical)
+      if (v instanceOf ObjectValue)
+        v = (v as ObjectValue).value
+      endIf
+      if (force or vars.contains(n))
+        if (immutable and not force) _err(t, "Object $ is immutable" (name))
+        vars[n] = v
+      elseIf next
+        next.set(n,v,t)
+      else
+        _err(t, "No such variable as $" (n))
+      endIf
+
+    method getv(n:String,t=null:Token)->Value
+      local r = get(n,t)
+      if (r is null and next) return next.getv(n, t)
+      if (r instanceOf Value) return r
+      return Value(r)
+
+    method get(n:String,t=null:Token,local_only=false:Logical)->Object
+      local r = vars[n]
+      if (r is null and next and not local_only) return next.get(n, t)
+      return r
+
+    method add_global_method (m:Method)
+      vars[m.name] = m
+
+    method add_method (m:Method)
+      vars[m.name] = m
+
+    method _err (t:Token, message:String)
+      if (t) throw t.error(message)
+      throw RoseError(message)
+
+    method getr (name:String,t=null:Token,local_only=false:Logical)->Object
+      local v = get(name,&local_only=local_only)
+      if (v is null) _err(t, "There is no attribute named '$' on object $." (name, this.name))
+      return v
+
+    method geto (name:String,t=null:Token)->RoseObject
+      local v = get(name)
+      if (v is null) _err(t, "There is no attribute named '$' on object $." (name, this.name))
+      local r = v->Object as RoseObject
+      if (r is null) _err(t, "Expected attribute '$' to be a Rose object." (name))
+      return r
+
+    method has_own_property (name:String)->Logical
+      try
+        getr(name,&local_only)
+        return true
+      endTry
+      return false
+
+    method call (scope:RoseObject, args:Value[], new_scope=true:Logical)->Value
+      local o = geto("call")
+      return o.call(scope, args, new_scope)
+
+    method create_instance (dummy:RoseObject, args:Value[])->Value
+      local type = this
+      local o = RoseObject("InstanceOf" + name)
+      o.set("__type__", this, &force)
+      o._name = name
+      _add_values(o)
+      o.next = globals
+
+      # Now bind methods
+      local update = Table<<String,Object>>()
+      forEach ((k,v) in o.vars.reader)
+        #println "attrib:$ val:$" (k,v.type_name)
+        if (v instanceOf Method)
+          update[k] = BoundMethod(v as Method, o, "Bound:" + k)
+        endIf
+      endForEach
+      forEach ((k,v) in update.reader)
+        o.vars[k] = v
+      endForEach
+
+      # Call the constructor
+      if (o.has_own_property("init"))
+        local init_method = o.geto("init")
+        init_method.call(o,args)
+      endIf
+      return ObjectValue(o)
+
+      #FIXME: We should do C3 based linearization here!
+      #See:
+      #  http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.19.3910&rep=rep1&type=pdf
+      #  https://en.wikipedia.org/wiki/C3_linearization
+      #  https://www.python.org/download/releases/2.3/mro/
+      # I think the final reference has a Python implementation at the very end which
+      # should be adaptable.
+
+    method _add_values (o:RoseObject)
+      #FIXME: This is terrible.  See create_instance() and implement C3.
+      forEach ((k,v) in vars.reader)
+        if (k.begins_with("__")) nextIteration
+        if (k == "call") nextIteration #FIXME
+        if (not o.has_own_property(k))
+          o.set(k, v, &force)
+        endIf
+      endForEach
+      local parents : RoseObject
+      try
+        parents = geto("__bases__")
+      endTry
+      if (parents is null) return
+      require(parents instanceOf ValueList)
+      forEach (p in (parents as ValueList))
+        require p.is_object
+        require p->Object instanceOf RoseObject
+        (p as RoseObject)._add_values(o)
+      endForEach
+
+    method to->String
+      return name
+endClass
+
+
+class RoseProxy : RoseObject
+  PROPERTIES
+    o : Object
+
+  METHODS
+    method init (o)
+      noAction
+
+    method name->String
+      return o
+
+    method get(n:String,t=null:Token,local_only=false:Logical)->Object
+      return Value(o.introspector.get(n))
+
+    method to->String
+      return name
+endClass

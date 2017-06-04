@@ -1,13 +1,11 @@
+module Rose
+
 class Local
   PROPERTIES
     t             : Token
     name          : String
     original_name : String  # only different for auto-store parameters
-    type          : Type
-    index         : Int32
     initial_value : Cmd
-    is_modified   : Logical # set if ever assigned a new value
-    is_alias      : Logical
       # Also serves as default_value for parameters
 
   METHODS
@@ -19,13 +17,10 @@ class Local
       result.original_name = original_name
 
       <init_result>
-      result.type = type
-      result.index = index
-      result.is_alias = is_alias
       if (initial_value) result.initial_value = initial_value.cloned( clone_args )
 
       return result
 
     method to->String
-      return "($ $:$)" (type_name, name, type.name)
+      return name
 endClass

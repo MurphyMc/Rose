@@ -1,0 +1,49 @@
+module Rose
+
+class RoseError : Error
+  PROPERTIES
+    filepath : String
+    line     : Int32
+    column   : Int32
+
+  METHODS
+    method init( message, filepath=null, line=0, column=0 )
+
+    method to->String
+      local builder = StringBuilder()
+      local m = message.word_wrap(79,",").join
+      if (filepath)
+        builder.println( "=" * ((Console.width-1).or_smaller(79)) )
+        builder.print( ''ERROR in "'' ).print( File.filename(filepath) )
+        builder.print( ''"  line '' ).print( line ).print( ", column " ).println( column )
+        builder.println
+        builder.println( m )
+        builder.println( "=" * ((Console.width-1).or_smaller(79)) )
+      else
+        builder.println( "=" * ((Console.width-1).or_smaller(79)) )
+        builder.print( "ERROR" )
+        builder.println
+        builder.println( m )
+        builder.println( "=" * ((Console.width-1).or_smaller(79)) )
+      endIf
+      return builder->String
+
+endClass
+
+
+# When you throw an exception from Rose, it gets wrapped in a RoseException.
+class RoseException : Exception
+  PROPERTIES
+    t : Token
+    value : Value # Wrapped value
+  METHODS
+    method init (value, t)
+      # For simplicity, we currently demand that it be an object...
+      if (not value.is_object) throw t.error("Only objects can be thrown.")
+      if (not (value->Object as RoseObject)) throw t.error("Only objects can be thrown.")
+
+      local o = value->Object as RoseObject
+
+      local type = o.get("__type__", t, &local_only)
+      if (not type) throw t.error("Only instances of objects can be thrown.")
+endClass

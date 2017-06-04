@@ -1,3 +1,5 @@
+module Rose
+
 class Token
   GLOBAL PROPERTIES
     filepath_to_filename = Table<<String,String>>()
@@ -12,10 +14,10 @@ class Token
     method init( type )
 
     method cloned->Token
-      throw RogueError( "cloned() not implemented for type $." (type_name) )
+      throw RoseError( "cloned() not implemented for type $." (type_name) )
 
-    method error( message:String )->RogueError
-      return RogueError( message, filepath, line, column )
+    method error( message:String )->RoseError
+      return RoseError( message, filepath, line, column )
 
     method filename->String
       if (not filepath) return "(unknown)"
@@ -59,8 +61,8 @@ class Token
     method to->String
       return type.to_String(this)
 
-    method to->Type
-      return null
+#    method to->Type
+#      return null
 
     method to_location->String
       if (not line and not column) return filepath
@@ -181,6 +183,7 @@ class LiteralReal64Token : Token
       return ""+value
 endClass
 
+#{
 class NativeCodeToken : Token
   PROPERTIES
     value : String
@@ -195,6 +198,7 @@ class NativeCodeToken : Token
     method to->String
       return value
 endClass
+}#
 
 class StringDataToken : Token
   PROPERTIES
@@ -204,7 +208,7 @@ class StringDataToken : Token
     method init( type, value )
 
     method quoted_name->String
-      if (type is TokenType.directive_essential) return "$essential"
+#      if (type is TokenType.directive_essential) return "$essential"
       return prior.quoted_name
 
     method to->String

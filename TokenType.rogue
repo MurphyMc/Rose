@@ -1,3 +1,5 @@
+module Rose
+
 class TokenType
   GLOBAL PROPERTIES
     lookup                        : Table<<String,TokenType>>
@@ -236,8 +238,8 @@ class TokenType
     method create_token( existing:Token, value:String )->Token
       return create_token( existing.filepath, existing.line, existing.column, value )
 
-    method create_token( existing:Token, original_type:Type, target_type:Type )->Token
-      return TypeIdentifierToken( this, original_type, target_type ).set_location( existing )
+#    method create_token( existing:Token, original_type:Type, target_type:Type )->Token
+#      return TypeIdentifierToken( this, original_type, target_type ).set_location( existing )
 
     method is_directive->Logical
       return false
@@ -279,15 +281,6 @@ class EOLTokenType : TokenType
 
     method is_structure->Logical
       return false
-endClass
-
-class NativeCodeTokenType : TokenType
-  METHODS
-    method create_token( filepath:String, line:Int32, column:Int32, value:String )->Token
-      return NativeCodeToken( this, value ).set_location( filepath, line, column )
-
-    method create_token( existing:Token, value:String )->Token
-      return NativeCodeToken( this, value ).set_location( existing.filepath, existing.line, existing.column )
 endClass
 
 class StructureTokenType : TokenType

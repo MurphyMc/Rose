@@ -1,522 +1,181 @@
-$include "MethodTemplate.rogue"
+module Rose
 
-class Method
+class ReturnException : Exception
+  PROPERTIES
+    return_value = UndefinedValue : Value
+  METHODS
+    method init (return_value)
+      noAction
+endClass
+
+
+class Method : RoseObject
   PROPERTIES
     t            : Token
-    type_context : Type
-    name         : String
+    type_context : RoseObject
+    #name         : String
     signature    : String
 
     attributes   = Attributes()
 
-    return_type      : Type
+#    return_type      : Type
 
-    task_result_type : Type
+#    task_result_type : Type
       # When a [task] is organized, task_result_type gets set to the original return_type
       # and return_type gets set to Task or TaskWithResult<<ResultType>>
 
     parameters = Local[] : Local[]
-    locals     = Local[] : Local[]
+#    locals     = Local[] : Local[]
 
     min_args     : Int32
 
     statements            = CmdStatementList()
-    aspect_statements     : CmdStatementList
-    incorporating_classes : Type[]
-
-    overridden_method  : Method
-    overriding_methods = Method[]
-    native_code        : String
-    native_return_type : Type
-
-    organized : Logical
-    resolved  : Logical
-    index     : Int32
-
-    is_used            : Logical
-    called_dynamically : Logical
-
-    label_list   = CmdLabel[]
-    label_lookup = Table<<String,CmdLabel>>()
-    cur_label    : CmdLabel
-
-    source_template   : MethodTemplate
-    specializer_count : Int32
-    unspecialized_name  : String
-
-    deprecated_message : String
 
   METHODS
-    method init( t, type_context, name )
+    method init( t, type_context, name:String )
+      _name = name
 
     method cloned->Method
       local result = Method( t, type_context, name )
 
       <initialize_result>
-      result.signature = signature
-      result.attributes = attributes.cloned
-      result.return_type = return_type
-      result.task_result_type = task_result_type
-      result.source_template = this.source_template
-      result.specializer_count = this.specializer_count
-      result.unspecialized_name = this.unspecialized_name
+      #result.signature = signature
+      #result.attributes = attributes.cloned
 
-      result.locals = Local[]
-      forEach (v in locals) result.locals.add( v.cloned )
+      #result.locals = Local[]
+      #forEach (v in locals) result.locals.add( v.cloned )
       result.parameters = Local[]
-      forEach (i of parameters) result.parameters.add( locals[i] )
-
-      # Label list and lookup will be filled in by the CmdLabel nodes being
-      # cloned.
-      result.label_list = CmdLabel[]( label_list.count )
-      result.label_lookup = Table<<String,CmdLabel>>()
+#      forEach (i of parameters) result.parameters.add( locals[i] )
 
       result.min_args = min_args
       result.statements = statements.cloned( CloneMethodArgs(result) )
-      result.native_code = native_code
-      result.index = index
 
       return result
-
-    method add_incorporating_class( incorporating_class:Type )
-      ensure incorporating_classes
-      incorporating_classes.add( incorporating_class )
-
-    method dispatch( v:Visitor )
-      v.visit( this )
-
-    method incorporate( into_type:Type )->Method
-      local m = cloned.set_type_context( into_type ).set_incorporated
-
-      <initialize_m>
-      if (aspect_statements)
-        # If aspect_statements is non-null then the aspect method was already resolved
-        # prior to the cloned() above and we need to copy the statements.
-        # If it's null then we've already cloned the statement list when we cloned()d
-        # the method above.
-        m.statements = aspect_statements.cloned( null as CloneArgs )
-      endIf
-
-      m.signature = null
-      m.assign_signature
-
-      return m
 
     method accepts_arg_count( n:Int32 )->Logical
       return n >= min_args and n <= parameters.count
 
-    method add_local( v_t:Token, v_name:String, v_type=null:Type, v_initial_value=null:Cmd )->Local
+    method add_local( v_t:Token, v_name:String, v_initial_value=null:Cmd )->Local
       local v = Local( v_t, v_name )
-      v.index = locals.count
-      v.type = v_type
+      #v.index = locals.count
       v.initial_value = v_initial_value
-      locals.add( v )
+      #locals.add( v )
       return v
 
     method add_local( v:Local )->Local
-      v.index = locals.count
-      locals.add( v )
+      #v.index = locals.count
+      #locals.add( v )
       return v
 
-    method add_parameter( p_t:Token, p_name:String, p_type=null:Type )->Local
-      local p = add_local( p_t, p_name, p_type )
+    method add_parameter( p_t:Token, p_name:String )->Local
+      #local p = add_local( p_t, p_name )
+      local p = Local(p_t, p_name)
       parameters.add( p )
       return p
 
-    method assign_signature
-      if (signature) return
-      local buffer = StringBuilder()
-      buffer.print name
-      buffer.print "("
-      local first = true
-      forEach (param in parameters)
-        if (first) first = false
-        else       buffer.print( "," )
-        buffer.print( param.type.name )
-      endForEach
-      buffer.print ")"
-      signature = buffer->String
-
-    method begin_label( label_t:Token, label_name:String, consolidate_duplicates:Logical )->CmdLabel
-      if (consolidate_duplicates)
-        cur_label = label_lookup[ label_name ]
-        if (cur_label) return cur_label
-
-      else
-        if (label_name == "insert" and label_lookup.contains(label_name))
-          throw label_t.error( "All methods implicitly define the label <<insert>> at the beginning of the method.  No duplicates are allowed." )
-        elseIf (label_name == "append" and label_lookup.contains(label_name))
-          throw label_lookup[label_name].t.error( "All methods implicitly define the label <<append>> at the end of the method.  No duplicates are allowed." )
-        endIf
-
-      endIf
-
-      cur_label = CmdLabel( label_t, label_name )
-      label_lookup[ label_name ] = cur_label
-      label_list.add( cur_label )
-      return cur_label
-      #{
-    method find_label( label_name:String )->CmdLabel
-      if (not label_lookup) return null
-      return label_lookup[ label_name ]
-      }#
-
-    method is_abstract->Logical
-      return (attributes.flags & Attribute.is_abstract)
-
-    method is_augment->Logical
-      return (attributes.flags & Attribute.is_augment)
-
-    method is_deprecated->Logical
-      return (attributes.flags & Attribute.is_deprecated)
-
-    method is_dynamic->Logical
-      return (overridden_method or overriding_methods.count or (attributes.flags & Attribute.is_dynamic))
-
-    method is_fallback->Logical
-      return (attributes.flags & Attribute.is_fallback)
-
-    method is_generated->Logical
-      return (attributes.flags & Attribute.is_generated)
-
-    method is_incorporated->Logical
-      return (attributes.flags & Attribute.is_incorporated)
-
-    method is_initializer->Logical
-      return (attributes.flags & Attribute.is_initializer)
-
-    method is_macro->Logical
-      return (attributes.flags & Attribute.is_macro)
-
-    method is_mutating->Logical
-      return (attributes.flags & Attribute.is_mutating)
-
-    method is_native->Logical
-      return (attributes.flags & Attribute.is_native)
-
-    method is_preferred->Logical
-      return (attributes.flags & Attribute.is_preferred)
-
-    method is_overridden->Logical
-      return overriding_methods.count
-
-    method is_api->Logical
-      return (attributes.flags & Attribute.is_api)
-
-    method is_essential->Logical
-      return (attributes.flags & Attribute.is_essential) or is_api or type_context.is_api
+    #method is_initializer->Logical
+    #  return (attributes.flags & Attribute.is_initializer)
 
     method is_global->Logical
       return (attributes.flags & Attribute.is_global)
 
-    method is_nonAPI->Logical
-      return (attributes.flags & Attribute.is_nonAPI)
+    #method is_task->Logical
+    #  return (attributes.flags & Attribute.is_task)
 
-    method is_propagated->Logical
-      return (attributes.flags & Attribute.is_propagated)
+    #method is_task_conversion->Logical
+    #  return (attributes.flags & Attribute.is_task_conversion)
 
-    method is_special->Logical
-      return (attributes.flags & Attribute.is_special)
-
-    method is_task->Logical
-      return (attributes.flags & Attribute.is_task)
-
-    method is_task_conversion->Logical
-      return (attributes.flags & Attribute.is_task_conversion)
-
-    method is_synchronized->Logical
-      return (attributes.flags & Attribute.is_synchronized)
-
-    method make_propagated->this
-      attributes.add( Attribute.is_propagated )
-      return this
-
-    method make_essential->this
-      attributes.add( Attribute.is_essential )
-      return this
-
-    method omit_output->Logical
-      if (is_native or is_macro or not is_used) return true
-      if (is_generated and name=="create" and type_context.is_compound) return true
-      if (is_abstract and not type_context.is_aspect)
-        return (overriding_methods.count > 0)
-      endIf
-      return false
-
-    method organize( scope=null:Scope, add_to_lookup=true:Logical )->Method
-      if (organized) return this
-      organized = true
-
-      if (name == "init")
-        if (is_global)
-          throw t.error( "init() methods cannot be global methods.  Rename your method init_class() if you need to perform class setup." )
-        elseIf (type_context.is_compound)
-          throw t.error( "Compounds cannot have initializers.  Use global create(...) methods instead." )
-        endIf
-        attributes.flags |= Attribute.is_initializer
-        return_type = type_context
-      endIf
-
-      if (is_task)
-        #if (is_global) throw t.error( "Global methods and routines cannot be tasks." )
-
-        task_result_type = return_type
-        if (return_type)
-          return_type.configure
-          return_type = Program.get_type_reference( t, "TaskWithResult<<$>>"(return_type.name) )
-        else
-          return_type = Program.get_type_reference( t, "NilTask" )
-        endIf
-        return_type.configure
-      endIf
-
-      forEach (param in parameters)
-        if (not is_global)
-          local property = type_context.find_property( param.name )
-
-          if (property)
-            if (param.type is null)
-              # Autostore parameter
-              local new_name = Program.create_unique_id
-              local pt = param.t
-              statements.insert( CmdAssign(pt,CmdAccess(pt,param.name),CmdAccess(pt,new_name)) )
-              param.name = new_name
-              param.type = property.type
-            elseIf (property.type_context is type_context and property.is_incorporated == this.is_incorporated)
-              throw param.t.error( ''A property named "$" already exists.'' (param.name) )
-            endIf
-          endIf
-        endIf
-
-        if (not param.type) throw param.t.error( ''No type declared for parameter "$".'' (param.name) )
-      endForEach
-
-      assign_signature
-
-      if (add_to_lookup and not is_augment)
-        # Add method to lookup tables.
-
-        local list = Program.methods_by_signature[ signature ]
-        if (not list)
-          list = Method[]
-          Program.methods_by_signature[ signature ] = list
-        endIf
-        list.add( this )
-
-        if (is_global)
-          local existing_m = type_context.global_method_lookup_by_signature[signature]
-          if (existing_m and existing_m.type_context is type_context)
-            if (type_context == Program.get_type_reference(t, "Global"))
-              throw t.error( "A routine with the signature $ is already defined." (signature) )
-            else
-              throw t.error( "A global method with the signature $ is already defined." (signature) )
-            endIf
-          endIf
-          type_context.global_method_lookup_by_signature[signature] = this
-        else
-          local existing_m = type_context.method_lookup_by_signature[signature]
-          if (existing_m and existing_m.type_context is type_context)
-            throw t.error( "A method with the signature $ is already defined." (signature) )
-          endIf
-          type_context.method_lookup_by_signature[signature] = this
-        endIf
-      endIf
-
-      min_args = parameters.count
-      while (min_args >= 1 and parameters[min_args-1].initial_value)
-        --min_args
-      endWhile
-
-      if (is_global and is_synchronized)
-        throw t.error( "Global methods cannot be synchronized." )
-      endIf
-
-      return this
-
-
-    method resolve
-      if (resolved) return
-      resolved = true
-
-      forEach (param in parameters)
-        param.type.configure
-      endForEach
-      if (return_type) return_type.configure
-
-      if (type_context.is_aspect and not is_global)
-        aspect_statements = statements
-        statements = CmdStatementList()
-      endIf
-
-      if (is_task) convert_to_task
-
-      local scope = Scope( type_context, this )
-      forEach (p in parameters) scope.push_local( p )
-
-      statements.resolve( scope, this is Program.m_on_launch )
-
-      if (scope.local_list.count > parameters.count) throw t.error( "locals left on scope stack" )
-      if (scope.control_stack.count) throw t.error( "control stucture left on scope stack" )
-
-      if (is_initializer)
-        local return_t = t
-        if (statements.count) return_t = statements.last.t
-        statements.add( CmdReturn(return_t,CmdLiteralThis(return_t,type_context)).resolve(scope) )
-      endIf
-
-    method returns_this->Logical
-      return (attributes.flags & Attribute.returns_this)
-
-    method convert_augment_to_standalone
-      attributes.flags &= !Attribute.is_augment
-      if (not native_code)
-        # Turn this augment method into a standalone method containing the
-        # <<insert>> and <<append>> label contents.  Throw an error if there are
-        # any other labels defined to avoid silently dropping that code.
-        if (label_list.count > 2)
-          # More than the default <<insert>> and <<append>> labels
-          local label = label_list[2]
-          throw label.t.error( "No corresponding label <<$>> in augmented code." (label.name) )
-        endIf
-
-        local insert_label = label_lookup[ "insert" ]
-        local append_label = label_lookup[ "append" ]
-        label_lookup.clear
-        label_list.clear
-
-        # Insert the label content.  Give the method its own <<insert>>
-        # and <<append>> labels for any successive augments.
-        statements.add( begin_label(t,"insert",false) )
-        statements.add( insert_label.statements )
-        statements.add( append_label.statements )
-        statements.add( begin_label(t,"append",false) )
-      endIf
-
-    method convert_to_task
-      # Create the class that will store the converted method
-      local task_type = Program.get_type_reference( t, "$__$__task$" (type_context.name,name,Program.next_unique_integer) )
-      task_type.attributes.add( Attribute.is_class )
-      task_type.base_types.add( return_type )  # Task or TaskWithResult<<ResultType>>
-
-      # Add an init method that accepts the original class context as well as all method parameters
-      local m_init = task_type.add_method( t, "init" )
-      if (not is_global)
-        m_init.add_parameter( t, "context" )
-      endIf
-      forEach (p in parameters)
-        m_init.add_parameter( t, "$_$" (p.name,p.index) )
-      endForEach
-
-      local m_update = task_type.add_method( t, "update" )
-      m_update.return_type = Program.type_Logical
-      m_update.statements.add( CmdAssign( t, CmdAccess(t,"has_result"), CmdLiteralLogical(t,false) ) )
-      m_update.statements.add( CmdGenericLoop( t, CmdControlStructure.type_while, CmdAccess(t,"execute",CmdArgs()) ) )
-      m_update.statements.add( CmdReturn( t, CmdCompareNE(t,CmdAccess(t,"ip"),CmdLiteralInt32(t,-1)) ) )
-
-      local m_execute = task_type.add_method( t, "execute" )
-      m_execute.return_type = Program.type_Logical
-      task_type.defined = true
-
-      # Create a temporary method to store the task body and resolve all statements and variable
-      # binding.  Then convert the resolved method to a task - locals to properties, this.properties
-      # to context.properties, etc.
-      local m_name = "__task_resolver" + Program.create_unique_id
-      local m_temp = Method( t, type_context, m_name )
-      m_temp.return_type = task_result_type
-      m_temp.attributes.add( Attribute.is_task_conversion )
-
-      # Move the Local var objects to the temp method (since Cmd code might reference them directly)
-      # along with the statements and resolve the temp method
-      m_temp.parameters = parameters
-      m_temp.locals = locals
-      m_temp.statements = statements
-      m_temp.organize( null, false )  # organize but don't add to type's method tables
-      m_temp.resolve
-
-      # Now come back and fix up this method's parameters and statements
-      locals = Local[]
-      parameters = Local[]
-      forEach (v in m_temp.locals)
-        if (v.index < m_temp.parameters.count)
-          add_parameter( v.t, v.name, v.type )
-        endIf
-      endForEach
-
-      # Original method gets a "return TaskObjectName()"
-      statements = CmdStatementList()
-      local args = CmdArgs()
-      if (not is_global) args.add( CmdLiteralThis(t,this.type_context) )
-      forEach (p in m_temp.parameters) args.add( CmdAccess(t,p.name) )
-      statements.add( CmdReturn( t, CmdAccess(t,task_type.name,args) ) )
-
-      # Convert resolved method into task "functor"
-      forEach (v in m_temp.locals)
-        local p_name = v.name + "_" + v.index
-        task_type.add_property( v.t, p_name, v.type )
-      endForEach
-
-      local task_args = TaskArgs( task_type, m_execute, this.type_context, this )
-      if (not is_global) task_args.context_property = task_type.add_property( t, "context", this.type_context )
-      task_args.ip_property = task_type.add_property( t, "ip", Program.type_Int32 )
-
-      forEach (statement in m_temp.statements)
-        statement = statement.cloned( task_args )
-        if (statement) task_args.add( statement )
-      endForEach
-      if (task_args.cmd_task_control.current_section.statements.count == 0)
-        task_args.cmd_task_control.current_section.statements.add( task_args.create_return(t) )
-      endIf
-
-      m_execute.statements.add( task_args.cmd_task_control )
-
-      task_type.configure
-
-    method set_incorporated->Method
-      attributes.add( Attribute.is_incorporated )
-      return this
+    #method is_synchronized->Logical
+    #  return (attributes.flags & Attribute.is_synchronized)
 
     method set_type_context( @type_context )->Method
       return this
 
     method to->String
-      return "$.$" (type_context.name,select{signature||name})
+      if (type_context) return "$.$" (type_context.name,select{signature||name})
+      return "." + select{signature||name}
 
-    method trace_used_code
-      if (is_used) return   # Already traced
-      is_used = true
-
-      type_context.trace_used_code
-
-      forEach (param in parameters) param.type.trace_used_code
-      if (return_type) return_type.trace_used_code
-
-      statements.trace_used_code
-
-    method address->Int64 [macro]
-      native "(RogueInt64)(intptr_t)$this"
-
-    method signature_with_named_args->String
-      local buffer = StringBuilder()
-      buffer.print name
-      buffer.print "("
-      local first = true
-      forEach (param in parameters)
-        if (first) first = false
-        else       buffer.print( "," )
-        buffer.print( param.original_name ).print( ':' ).print( param.type.name )
-      endForEach
-      buffer.print ")"
-      return buffer->String
-
-    method validate
-      # Perform miscellaneous validation
-      if (is_used and not is_macro)
-        if (overridden_method)
-          if( index != overridden_method.index )
-            @trace this, index, overridden_method, overridden_method.index
-          endIf
-          require( index == overridden_method.index )
-        endIf
+    method call (scope:RoseObject, args:Value[], new_scope=true:Logical)->Value
+      local call_scope = scope
+      if (new_scope)
+        call_scope = MethodFrame()
+        call_scope._name = name
+        call_scope.next = scope.globals
       endIf
+
+      #FIXME: Handle named args!
+
+      if (args.count > parameters.count)
+        throw RoseError("Method $ was passed $ args, but it takes at most $." (this, args.count, parameters.count))
+      elseIf (args.count < min_args)
+        throw RoseError("Method $ was passed $ args, but it takes at least $." (this, args.count, min_args))
+      elseIf (args.count < parameters.count)
+        forEach (i in args.count..<parameters.count)
+          if (parameters[i].initial_value)
+            args.add(parameters[i].initial_value.eval(scope))
+          else
+            throw RoseError("Method $ was not passed a value for parameter $." (this, parameters[i].name))
+          endIf
+        endForEach
+      endIf
+
+      forEach (p at i in parameters)
+        call_scope.set(p.name, args[i], &force)
+      endForEach
+
+      try
+        forEach (st in statements)
+          #println "<<<< " + this + "() " + st
+          #println ">>>> " + this + "() " + st.eval(call_scope)
+          st.eval(call_scope)
+        endForEach
+      catch (ex:ReturnException)
+        return ex.return_value
+      endTry
+      return UndefinedValue
 endClass
 
+
+class MethodFrame : RoseObject
+  METHODS
+    method get(n:String,t=null:Token,local_only=false:Logical)->Object
+      # On failure to find locally, does a lookup in parent even if local_only
+      local r = vars[n]
+      if (r is null)
+        r = next.get(n, t, &local_only)
+        if (r is null and next and not local_only) return next.get(n, t)
+      endIf
+      return r
+endClass
+
+
+class BoundMethod : RoseObject
+  PROPERTIES
+    bound_method : Method
+    bound_this : RoseObject
+  METHODS
+    method init( bound_method, bound_this, name:String )
+      _name = name
+
+    method call (scope:RoseObject, args:Value[], new_scope=true:Logical)->Value
+      #TODO: What we need here is a special
+      local this_scope = MethodFrame()
+      this_scope.next = bound_this
+      this_scope._name = "BoundMethodScope:"+bound_method.name
+      this_scope.set("this", bound_this, &force)
+
+      return bound_method.call(this_scope, args, &!new_scope)
+endClass
+
+
+class NativeMethod : RoseObject
+  PROPERTIES
+    bound_method : Function(RoseObject,Value[])->(Value)
+    bound_this : RoseObject
+  METHODS
+    method init( bound_method, name:String, bound_this=null )
+      _name = name
+
+    method call (scope:RoseObject, args:Value[], new_scope=true:Logical)->Value
+      return bound_method(bound_this, args)
+endClass

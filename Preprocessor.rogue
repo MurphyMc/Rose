@@ -1,3 +1,5 @@
+module Rose
+
 class Preprocessor
   GLOBAL PROPERTIES
     definitions = Table<<String,Token[]>>()
@@ -61,15 +63,17 @@ class Preprocessor
             endIf
             nextIteration
 
+#{
           elseIf (t.type is TokenType.directive_include)
             local filepath_t = reader.read
             if (keep_tokens)
               if (filepath_t.type is not TokenType.literal_string)
                 throw reader.error( "Filepath expected." )
               endIf
-              RogueC.include_source( t, filepath_t->String )
+              Rose.include_source( t, filepath_t->String )
             endIf
             nextIteration
+}#
 
           elseIf (t.type is TokenType.directive_elseIf)
             if (depth == 1) throw t.error( "Syntax error - $elseIf does not match any previous $if." )
@@ -128,18 +132,20 @@ class Preprocessor
           endIf
         endIf
 
+#{
         if (t.type is TokenType.keyword_class or t.type is TokenType.keyword_routine or t.type is TokenType.keyword_enum)
           if (cur_module and reader.peek.type is TokenType.identifier)
             if (keep_tokens) tokens.add( t )
             t = reader.read
             local class_name = t->String
-            Program.add_module_id( cur_module, class_name )
+            Rose.add_module_id( cur_module, class_name )
             if (keep_tokens)
               tokens.add( t.type.create_token(t,"$::$"(cur_module,class_name)) )
             endIf
             nextIteration
           endIf
         endIf
+}#
 
         if (t.type is TokenType.literal_string)
           while (reader.peek.type is TokenType.literal_string)
@@ -154,7 +160,7 @@ class Preprocessor
 
     method must_consume( type:TokenType )
       local message = "Expected '$'." (type.name)
-      if (not reader.has_another) throw RogueError( message )
+      if (not reader.has_another) throw RoseError( message )
       local t = reader.read
       if (t.type is not type) throw t.error( message )
 
@@ -188,10 +194,12 @@ class Preprocessor
           return result
         endIf
 
+#{
         if (t.type is TokenType.literal_string)
           local target = reader.read->String
-          return RogueC.compile_targets[target]
+          return Rose.compile_targets[target]
         endIf
+}#
 
         if (t.type is TokenType.symbol_minus)
           reader.read

@@ -1,3 +1,5 @@
+module Rose
+
 class Attribute
   ENUMERATE
     is_class            = 0
