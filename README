@@ -1,0 +1,18 @@
+Rose is the ROgue Scripting Extension.
+
+It's a scripting language derived from and implemented in Rogue.
+It is still very immature.
+
+Rose is distributed under the Unlicense.
+
+One way of trying it out is to clone the Rose repository into Rogue's
+Source/Libraries (or symlink it there).  Then "make libraries" in Rogue.
+Then compile the example Rose interpreter.  You'll need to compile the
+C++ manually because you need to add the libffi library.  Something
+like the following should work:
+
+roguec rose.rogue --main
+c++ -std=gnu++11 rose.cpp -o rose -lffi
+
+Then try running the example Rose script:
+./rose example.rose
