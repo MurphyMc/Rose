@@ -1,0 +1,68 @@
+local foo = 10
+
+routine root (x)
+  local y = 2
+  if (x == 9) x = 11
+  return x * 10 + y
+endRoutine
+
+println("Hello world!")
+println("foo = " + foo)
+
+println("result = " + (root(foo - 1)-1))
+
+println("test_value = " + test_object.test_value)
+
+local r = test_object.test_method("Hi")
+println("test_method returned " + r)
+
+block
+  local v = [1,2,3,"foo"]
+  v[3] = "boo"
+  println("v[3] = " + v[3])
+  v = @{greet:"hello", place:"cleveland", who:"you"}
+  v["place"] = "world"
+  println(v["greet"] + " " + v["place"])
+  println("Q:Who  A:" + v//who)
+  println(v)
+
+  escapeBlock
+
+  println("NEVER HAPPENS")
+endBlock
+
+println("Is instance of Object? " + (test_object instanceOf Object))
+println("Is instance of TestObject? " + (test_object instanceOf TestObject))
+println("Is instance of String? " + (test_object instanceOf String))
+
+println("3" + 1)
+println("3"->Int32 + 1)
+println(3->String + 1)
+
+try
+  #assert(false)
+  test_object.error()
+catch (ex:RoseError)
+  println("ROSE ROSE ERROR:" + ex)
+catch (ex:Exception)
+  println("ROSE EXCEPTION:" + ex)
+  println(ex.message)
+endTry
+
+
+class BoringClass
+  PROPERTIES
+    sleepiness
+  METHODS
+    method init (sleepiness=3)
+      this.sleepiness = sleepiness
+
+    method snooze ()
+      println "Z" + ("z" * (sleepiness - 1))
+endClass
+
+local bore = BoringClass()
+bore.snooze()
+
+bore = BoringClass(8)
+bore.snooze()

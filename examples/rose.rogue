@@ -1,0 +1,32 @@
+$include "Rose/Rose.rogue"
+
+class PrintLn : Rose::RoseObject
+  METHODS
+    method call (scope:Rose::RoseObject, args:Value[], new_scope=true:Logical)->Value
+      forEach (arg at index in args)
+        if (index) print " "
+        print arg
+      endForEach
+      println
+      return UndefinedValue
+endClass
+
+class TestObject [api]
+  PROPERTIES
+    test_value = 42
+  METHODS
+    method test_method (from_rose:String)->Int32
+      println "test_mode got $ from Rose" (from_rose)
+      return 43
+
+    method error ()
+      throw Error("This is an error from Rogue")
+endClass
+
+assert System.command_line_arguments.count
+
+local rose = Rose::Rose()
+rose.globals["println"] = PrintLn()
+rose.globals["test_object"] = TestObject()
+
+rose.execute(System.command_line_arguments[0])
